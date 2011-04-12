@@ -92,7 +92,10 @@ class Serve(object):
         return sz
 
     def help(self, msg):
-        self.send("""TODO: implement help!""")
+        self.send("""Moves are specified as <letter><number> pairs without spaces in between them,
+        like 'C4' or 'E10'.
+        
+        Type /raw <command> to enter a raw GTP command for debugging""")
 
     def raw_cmd(self, msg):
         msg = " ".join(msg.split(" ")[1:])
