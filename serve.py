@@ -39,12 +39,25 @@ class Gnugo(object):
         return response
 
 class Serve(object):
+    """Serve a game of Go to a convore topic"""
+    HUMAN = 0
+    COMPUTER = 1
+
+    ACTIVE = 0
+    PASS = 1
+    FINISHED = 2
+
     def __init__(self, topic_id, queue):
         self.topic_id = topic_id
         self.message_queue = queue 
 
         #don't start a gnugo unless the user wants a game
         self.gnugo = None
+
+        self.black = Serve.HUMAN
+        self.white = Serve.COMPUTER 
+
+        self.gamestate = Serve.ACTIVE
 
     def send(self, msg, **params):
         send(self.topic_id, msg, **params)
@@ -53,18 +66,6 @@ class Serve(object):
         board = self.gnugo.command("showboard")
         #return all but the first and last lines
         self.send("\n".join(board.split("\n")[1:-1]), pasted=True)
-
-    def get_computer_move(self, color):
-        def _get_computer_move(self):
-            move = self.gnugo.command("genmove", color)
-            self.send("black played %s" % move)
-        return _get_computer_move(self)
-
-    def get_human_move(self, color):
-        def _get_human_move(self):
-            msg = self.get_legal_move(color)
-            self.gnugo.command("play", color, msg)
-        return _get_human_move(self)
 
     def legalmove(self, color, msg):
         p("checking color %s msg %s" % (color, msg))
@@ -90,32 +91,66 @@ class Serve(object):
 
         return sz
 
-    def get_move_or_pass(self):
-        self.send("Enter coordinates to make a move, or type 'pass' to play white:")
-        msg = self.message_queue.get()
+    def help(self, msg):
+        self.send("""TODO: implement help!""")
 
-        while not (msg['message'] == "pass" or self.legalmove("black", msg["message"])):
-            self.send("invalid move. Try again:")
+    def raw_cmd(self, msg):
+        msg = " ".join(msg.split(" ")[1:])
+        try:
+            self.send(self.gnugo.command(msg), pasted=True)
+        except GnugoException as e:
+            self.send(e.message, pasted=True)
+
+    def get_human_move(self, color):
+        commands = {
+            "help": self.help,
+            "/raw": self.raw_cmd,
+        }
+
+        #pull messages until we get a valid command for @color
+        while 1:
+            self.send("Enter a legal move for %s:" % color)
+
             msg = self.message_queue.get()
+            m = msg['message']
+            cmd = m.split(" ")[0]
 
-        return msg
+            if self.legalmove(color, m):
+                if m.lower() == "pass":
+                    if self.gamestate == Serve.PASS:
+                        self.gamestate = Serve.FINISHED
+                    else:
+                        self.gamestate = Serve.PASS
 
-    def get_legal_move(self, color):
-        self.send("Enter the coordinates of your move:")
-        msg = self.message_queue.get()
+                self.gnugo.command("play", color, m)
+                self.showboard()
+                break
+            elif cmd in commands:
+                commands[cmd](m)
 
-        while not self.legalmove(color, msg["message"]):
-            self.send("Invalid move. Enter the coordinates of your move:")
-            msg = self.message_queue.get()
+            p("didn't find command %s" % (cmd))
 
-        return msg
+    def get_computer_move(self, color):
+        mv = self.gnugo.command("genmove", color).split()[1]
+        self.send("%s played %s" % (color, mv))
 
-    def serve_game(self, topic_id):
+        if mv.lower() == "pass":
+            if self.gamestate == Serve.PASS:
+                self.gamestate = Serve.FINISHED
+            else:
+                self.gamestate = Serve.PASS
+        else:
+            self.showboard()
+
+    def serve(self):
+        #avoid the "new room quick message" bug
+        sleep(.37)
+
         p("serving game!")
 
         self.gnugo = Gnugo()
 
-        sz = self.get_int("What boardsize would you like? (19):", 9, 19, 19)
+        sz = self.get_int("What boardsize would you like? (19):", 3, 19, 19)
         self.gnugo.command("boardsize", sz)
 
         handicap = self.get_int("What handicap would you like? (0):", 0, 12, 0)
@@ -125,36 +160,23 @@ class Serve(object):
         self.showboard()
 
         if handicap == 0:
-            msg = self.get_move_or_pass()
+            self.get_human_move("black")
         else:
-            msg = self.get_legal_move("black")
+            self.white = Serve.HUMAN
+            self.black = Serve.COMPUTER
 
-        if msg["message"] == "pass":
-            move = self.gnugo.command("genmove black")
-            self.send("Black played %s" % move)
-            black, white = self.get_computer_move("black"), self.get_human_move("white")
-        else:
-            self.gnugo.command("play black %s" % msg["message"])
-            white, black = self.get_computer_move("white"), self.get_human_move("black")
+        #now black will have played, either via handicap or the previous command,
+        #so white will go next.
+        while self.gamestate != Serve.FINISHED:
+            if self.white == Serve.HUMAN:
+                self.get_human_move("white")
+            else:
+                self.get_computer_move("white")
 
-        self.showboard()
+            if self.black == Serve.HUMAN:
+                self.get_human_move("black")
+            else:
+                self.get_computer_move("black")
 
-        #each run through this loop handles a (white, black) move pair
-        while 1:
-            black()
-            self.showboard()
-            white()
-            self.showboard()
-
-    def serve(self):
-        #avoid the "new room quick message" bug
-        sleep(.37)
-
-        self.send("Would you like to play a game of go (Y/n)?")
-
-        msg = self.message_queue.get()
-
-        if msg['message'] == "n":
-            self.send("Ok, I'll leave you alone then!")
-        else:
-            self.serve_game(self.topic_id)
+        score = self.gnugo.command("final_score").split()[1]
+        self.send("Final Score: %s" % score)
