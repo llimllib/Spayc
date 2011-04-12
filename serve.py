@@ -52,7 +52,7 @@ class Serve(object):
     def showboard(self):
         board = self.gnugo.command("showboard")
         #return all but the first and last lines
-        return "\n".join(board.split("\n")[1:-1])
+        self.send("\n".join(board.split("\n")[1:-1]), pasted=True)
 
     def get_computer_move(self, color):
         def _get_computer_move(self):
@@ -97,7 +97,7 @@ class Serve(object):
             sz = 19
         self.gnugo.command("boardsize", sz)
 
-        self.send(self.showboard(), pasted=True)
+        self.showboard()
 
         self.send("Enter a move to make a move, or type 'pass' to play white")
         msg = self.message_queue.get()
@@ -108,17 +108,19 @@ class Serve(object):
         if msg["message"] == "pass":
             move = self.gnugo.command("genmove black")
             self.send("Black played %s" % move)
-            black, white = self.get_computer_move("black"), self.get_human_move
+            black, white = self.get_computer_move("black"), self.get_human_move("white")
         else:
             self.gnugo.command("play black %s" % msg["message"])
-            white, black = self.get_computer_move, self.get_human_move
+            white, black = self.get_computer_move("white"), self.get_human_move("black")
 
-        self.send(self.showboard(), pasted=True)
+        self.showboard()
 
         #each run through this loop handles a (white, black) move pair
         while 1:
             black()
+            self.showboard()
             white()
+            self.showboard()
 
     def serve(self):
         #avoid the "new room quick message" bug
