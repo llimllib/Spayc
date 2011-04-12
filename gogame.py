@@ -6,7 +6,7 @@ import requests
 from utils import send, p, query
 from gnugo import Gnugo, GnugoException
 
-class Serve(object):
+class Gogame(object):
     HUMAN = 0
     COMPUTER = 1
 
@@ -62,7 +62,9 @@ class Serve(object):
         self.send("""Moves are specified as <letter><number> pairs without spaces in between them,
         like 'C4' or 'E10'.
         
-        Type /raw <command> to enter a raw GTP command for debugging""")
+        Type /raw <command> to enter a raw GTP command for debugging
+        
+        Please report bugs to bill.mill@gmail.com""")
 
     def raw_cmd(self, msg):
         msg = " ".join(msg.split(" ")[1:])
@@ -114,7 +116,7 @@ class Serve(object):
 
     def serve(self):
         #avoid the "new room quick message" bug
-        sleep(.37)
+        sleep(.5)
 
         p("serving game!")
 
@@ -142,6 +144,8 @@ class Serve(object):
                 self.get_human_move("white")
             else:
                 self.get_computer_move("white")
+
+            if self.gamestate == Serve.FINISHED: break
 
             if self.black == Serve.HUMAN:
                 self.get_human_move("black")

@@ -7,7 +7,7 @@ import requests
 
 import config
 from utils import p, send
-from serve import Serve
+from gogame import Gogame
  
 games = {}
 def main():
@@ -47,7 +47,7 @@ def main():
                     topic_id = message["id"]
 
                     queue = Queue()
-                    proc = Process(target=Serve(topic_id, queue).serve)
+                    proc = Process(target=Gogame(topic_id, queue).serve)
                     proc.start()
 
                     games[topic_id] = (proc, queue)
