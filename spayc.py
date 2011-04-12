@@ -23,7 +23,11 @@ def main():
         try:
             p('requesting')
             r = req({'cursor': cursor}) if cursor else req()
-            assert r.status_code == 200, "Got invalid status code %s on response body %s" % (r.status_code, r.content)
+
+            if r.status_code != 200:
+                p("Got invalid status code %s on response body %s" % (r.status_code, r.content))
+                continue
+
             response = json.loads(r.content)
             for message in response['messages']:
                 cursor = message['_id']
