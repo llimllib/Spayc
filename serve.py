@@ -1,6 +1,7 @@
 """Serve a game of go"""
 import sqlite3
 import json
+from time import sleep
 from subprocess import Popen, PIPE
 from multiprocessing import Queue
 
@@ -54,14 +55,17 @@ class Serve(object):
             sz = 19
         self.gnugo.command("boardsize", sz)
 
-        self.send(self.gnugo.command("showboard"), paste=True)
+        self.send(self.gnugo.command("showboard"), pasted=True)
 
         self.send("more of a game to come in teh future!")
 
     def serve(self):
+        #avoid the "new room quick message" bug
+        sleep(.5)
+
         self.send("Would you like to play a game of go (Y/n)?")
+
         msg = self.message_queue.get()
-        p("message received: %s" % msg)
 
         if msg['message'] == "n":
             self.send("Ok, I'll leave you alone then!")
