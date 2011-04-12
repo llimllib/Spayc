@@ -1,42 +1,10 @@
 """Serve a game of go"""
-import sqlite3
-import json
 from time import sleep
-from subprocess import Popen, PIPE
-from multiprocessing import Queue
 
 import requests
 
-import config
 from utils import send, p, query
-
-class GnugoException(Exception): pass
-
-class Gnugo(object):
-    def __init__(self):
-        self.gnugo = Popen("gnugo --mode gtp", shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE, close_fds=True, bufsize=1) 
-        #command id
-        self.cid = 1
-
-    def command(self, command, *args):
-        strargs = " ".join(map(str, args))
-        self.gnugo.stdin.write("%s %s %s\n" % (self.cid, command, strargs))
-
-        #TODO: validate the return value?
-        #the return begins with an = on success, fail on failure
-        line = self.gnugo.stdout.readline()
-
-        response = [line]
-        while line != "\n":
-            line = self.gnugo.stdout.readline()
-            response.append(line)
-
-        response = "".join(response)
-
-        if not response.startswith("="):
-            raise GnugoException(response)
-
-        return response
+from gnugo import Gnugo, GnugoException
 
 class Serve(object):
     """Serve a game of Go to a convore topic"""
@@ -119,14 +87,14 @@ class Serve(object):
             cmd = m.split(" ")[0]
 
             if self.legalmove(color, m):
+                self.gnugo.command("play", color, m)
                 if m.lower() == "pass":
                     if self.gamestate == Serve.PASS:
                         self.gamestate = Serve.FINISHED
                     else:
                         self.gamestate = Serve.PASS
-
-                self.gnugo.command("play", color, m)
-                self.showboard()
+                else:
+                    self.showboard()
                 break
             elif cmd in commands:
                 commands[cmd](m)
