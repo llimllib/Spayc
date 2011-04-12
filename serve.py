@@ -62,11 +62,7 @@ class Serve(object):
 
     def get_human_move(self, color):
         def _get_human_move(self):
-            msg = self.message_queue.get()["message"]
-            while not self.legalmove(color, msg):
-                self.send("Illegal move: %s\nTry again:" % msg)
-                msg = self.message_queue.get()["message"]
-
+            msg = self.get_legal_move(color)
             self.gnugo.command("play", color, msg)
         return _get_human_move(self)
 
@@ -82,28 +78,56 @@ class Serve(object):
             #TODO: print a nice error to the user
             return False
 
+    def get_int(self, prompt, min_, max_, default):
+        self.send(prompt)
+        msg = self.message_queue.get()
+
+        try:
+            sz = int(msg["message"])
+            if not min_ <= sz <= max_: sz = default
+        except ValueError:
+            sz = default
+
+        return sz
+
+    def get_move_or_pass(self):
+        self.send("Enter coordinates to make a move, or type 'pass' to play white:")
+        msg = self.message_queue.get()
+
+        while not (msg['message'] == "pass" or self.legalmove("black", msg["message"])):
+            self.send("invalid move. Try again:")
+            msg = self.message_queue.get()
+
+        return msg
+
+    def get_legal_move(self, color):
+        self.send("Enter the coordinates of your move:")
+        msg = self.message_queue.get()
+
+        while not self.legalmove(color, msg["message"]):
+            self.send("Invalid move. Enter the coordinates of your move:")
+            msg = self.message_queue.get()
+
+        return msg
+
     def serve_game(self, topic_id):
         p("serving game!")
 
         self.gnugo = Gnugo()
 
-        self.send("What boardsize would you like? (19):")
-        msg = self.message_queue.get()
-        try:
-            sz = int(msg["message"])
-            if not 8 < sz < 20:
-                sz = 19
-        except ValueError:
-            sz = 19
+        sz = self.get_int("What boardsize would you like? (19):", 9, 19, 19)
         self.gnugo.command("boardsize", sz)
+
+        handicap = self.get_int("What handicap would you like? (0):", 0, 12, 0)
+        if handicap > 0:
+            self.gnugo.command("fixed_handicap", handicap)
 
         self.showboard()
 
-        self.send("Enter a move to make a move, or type 'pass' to play white")
-        msg = self.message_queue.get()
-        while not (msg['message'] == "pass" or self.legalmove("black", msg["message"])):
-            self.send("invalid move. Try again:")
-            msg = self.message_queue.get()
+        if handicap == 0:
+            msg = self.get_move_or_pass()
+        else:
+            msg = self.get_legal_move("black")
 
         if msg["message"] == "pass":
             move = self.gnugo.command("genmove black")
