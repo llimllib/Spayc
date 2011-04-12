@@ -1,4 +1,4 @@
-"""Serve a game of go"""
+"""Serve a game of Go to a convore topic"""
 from time import sleep
 
 import requests
@@ -7,7 +7,6 @@ from utils import send, p, query
 from gnugo import Gnugo, GnugoException
 
 class Serve(object):
-    """Serve a game of Go to a convore topic"""
     HUMAN = 0
     COMPUTER = 1
 
